@@ -11,6 +11,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Properties;
@@ -29,15 +30,31 @@ public class SunAndMoonData {
 
     private Properties samd;
     private final HttpClient client = HttpClient.newHttpClient();
-    //private static final Logger LOGGER = LogManager.getLogger();   
-    //private static final double DEGREES_TO_RADIANS = 0.017453292519943295;    
+    private static final String FAKE_JSON = "{properties: {moonphase: 0.2 }}";
     
+    //=============================
+    /*
+    * Return sunrise and set as localtimes instead of Properties
+    */
+    public SunTimes getSunTimes(String baseURL, String timezone, String latitude, String longitude){
+        samd = new Properties();
+        ZoneId zoneId = ZoneId.of(timezone);
+
+        ZoneOffset rulesOffset = zoneId.getRules().getOffset(Instant.now());
+        int hoursOffset = rulesOffset.getTotalSeconds() / 3600;
+        String offsetUTC = String.format("%+03d:00", hoursOffset);
+        
+        String sunJson = callAPI(baseURL, "sun", latitude, longitude, offsetUTC);
+        extractFields(sunJson, FAKE_JSON);
+        LocalTime rise = LocalTime.parse(samd.getProperty("sunrise"));
+        LocalTime set = LocalTime.parse(samd.getProperty("sunset"));
+        return new SunTimes(rise, set);
+    }
     
     /*========================================
     * Return times of sunrise and sunset plus moon illumination %age
     */
     public Properties collectData(String baseURL, String timezone, String latitude, String longitude) {
-
         samd = new Properties();
         ZoneId zoneId = ZoneId.of(timezone);
 
@@ -47,13 +64,14 @@ public class SunAndMoonData {
         
         String sunJson = callAPI(baseURL, "sun", latitude, longitude, offsetUTC);
         String moonJson = callAPI(baseURL, "moon", latitude, longitude, offsetUTC);
-        
-        return extractFields(sunJson, moonJson);
+        extractFields(sunJson, moonJson);
+            
+        return samd;
     }
 
     //========================================
-    private Properties extractFields(String sunJson, String moonJson) {
-       
+    private void extractFields(String sunJson, String moonJson) {
+        
         JSONObject jo = new JSONObject(sunJson);
         JSONObject sun = jo.getJSONObject("properties");
         JSONObject rise = sun.getJSONObject("sunrise");
@@ -71,7 +89,6 @@ public class SunAndMoonData {
         //double moonAge = 0.5 * (1 - Math.cos(DEGREES_TO_RADIANS * notPhase.doubleValue() ));
         
         samd.put("moonangle", String.valueOf(angle));
-        return samd;
     }
 
     //========================================
@@ -95,5 +112,21 @@ public class SunAndMoonData {
         
 
     }
+   
+//    public static void main(String[] args) {
+//        new SunAndMoonData().getSunTimes(
+//            "https://api.met.no/weatherapi/sunrise/3.0/%s?lat=%s&lon=%s&date=2025-06-05&offset=+01:00",
+//            "Europe/London", 
+//            "52.0", 
+//            "-0.7");
+//       
+//        new SunAndMoonData().collectData (
+//            "https://api.met.no/weatherapi/sunrise/3.0/%s?lat=%s&lon=%s&date=2025-06-05&offset=+01:00",
+//            "Europe/London", 
+//            "52.10", 
+//            "-0.71");
+//    }
+//    
+    
 }
 
